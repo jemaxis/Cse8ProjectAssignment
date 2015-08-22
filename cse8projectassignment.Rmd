@@ -1,0 +1,68 @@
+---
+title: "Coursera 8 Assignment"
+author: "JSoh"
+date: "Saturday, August 22, 2015"
+output: html_document
+---
+
+```{r setoptions,echo=FALSE,message=FALSE,warning=FALSE}
+library(knitr)
+opts_chunk$set(echo=TRUE,message=FALSE,warning=FALSE)
+```
+##Overview
+
+The goal of this assignment is to predict the manner in which people exercised using data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+The aim is to build a prediction model to predict the "classe" variable in the data set. 
+
+##Data download and processing
+Training and test data is downloaded and loaded into respective data frames.
+```{r loadData,cache=TRUE}
+# Download trainig and test data file from source
+urlToDownloadTrainData ="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlToDownloadTestData ="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+if(!file.exists("pml-training.csv")){
+    download.file(url = urlToDownloadTrainData, destfile = "pml-training.csv",method = "curl")
+}
+if(!file.exists("pml-test.csv")){
+    download.file(url = urlToDownloadTestData, destfile = "pml-test.csv", method="curl")
+}
+# Read and load the data file into a dataframe
+traindata <- read.csv(file="pml-training.csv",header=TRUE,na.strings = c(""," ",NA,"#DIV/0!"))
+testdata <- read.csv(file="pml-testing.csv",header=TRUE,na.strings = c(""," ",NA,"#DIV/0!"))
+```
+
+After inspecting the data, we clean both the training and test data sets by removing columns that has at least one NA value as well as the first 5 columns as the data is not required:
+```{r cleandata, cache=TRUE, results='hide'}
+head(traindata)
+naCols <- which(unname(sapply(traindata,anyNA)))
+cleanTrainData <- traindata[,-c(1:5,naCols)]
+cleanTestData <- testdata[,-c(1:5,naCols)]
+```
+
+##Training the data
+Proceed with partitioning part of the training data set for training the prediction mdoel and the test set for validating the prediction model. 
+```{r train, cache=TRUE, results='hide'}
+library(caret)
+train <- createDataPartition(cleanTrainData$classe,p=0.7,list=FALSE)
+trainset <- cleanTrainData[train,]
+testTrainset <- cleanTrainData[-train,]
+```
+We will use random forest machine learning model to formulate the prediction model:
+```{r RFtraining,cache=TRUE}
+library(randomForest)
+set.seed(1234)
+rfmod <- randomForest(classe~.,data=trainset)
+rfmod
+```
+Looking at the OOB error, it seems that the error rate is pretty low at 0.28%.
+To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:
+```{r accuracy,cache=TRUE}
+accuracy <- confusionMatrix(predict(rfmod,testTrainset[,-55]),testTrainset$classe)
+accuracy$overall
+errFunc = function(values, prediction) {
+    sum(prediction != values)/length(values)
+}
+oosamplerr <- errFunc(testTrainset$classe,predict(rfmod,testTrainset[,-55]))
+oosamplerr
+```
