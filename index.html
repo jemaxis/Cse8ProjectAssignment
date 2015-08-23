@@ -84,14 +84,14 @@ naCols &lt;- which(unname(sapply(traindata,anyNA)))
 cleanTrainData &lt;- traindata[,-c(1:5,naCols)]
 cleanTestData &lt;- testdata[,-c(1:5,naCols)]</code></pre>
 </div>
-<div id="training-the-data" class="section level2">
-<h2>Training the data</h2>
+<div id="partitioning-data-and-training-the-prediction-model" class="section level2">
+<h2>Partitioning data and training the prediction model</h2>
 <p>Proceed with partitioning part of the training data set for training the prediction mdoel and the test set for validating the prediction model.</p>
 <pre class="r"><code>library(caret)
 train &lt;- createDataPartition(cleanTrainData$classe,p=0.7,list=FALSE)
 trainset &lt;- cleanTrainData[train,]
 testTrainset &lt;- cleanTrainData[-train,]</code></pre>
-<p>We will use random forest machine learning model to formulate the prediction model. In random forest, cross validation is not required as internally it is done using out of bag (oob) method. The oob error estimate indicates an unbiased estimate of the test set error.</p>
+<p>We will use random forest machine learning model to formulate the prediction model as it is known for its accuracy in prediction. In random forest, cross validation is not required as internally it is done using out of bag (OOB) method. Each tree is constructed using a different bootstrap sample from the original data. About one-third of the cases are left out of the bootstrap sample and not used in the construction of the kth tree. More details can be found here: <a href="https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr">https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr</a>. The OOB error estimate indicates an unbiased estimate of the test set error. Hence, there is no real need to carry out cross-validation to find out the out-of-sample error.</p>
 <pre class="r"><code>library(randomForest)
 set.seed(1234)
 rfmod &lt;- randomForest(classe~.,data=trainset)
@@ -111,7 +111,11 @@ rfmod</code></pre>
 ## C    0   10 2385    1    0 0.0045909850
 ## D    0    0   14 2237    1 0.0066607460
 ## E    0    0    0    7 2518 0.0027722772</code></pre>
-<p>Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%. To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:</p>
+<p>Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%.</p>
+</div>
+<div id="validating-the-prediction-model" class="section level2">
+<h2>Validating the prediction model</h2>
+<p>To assess the accuracy of the prediction model we will use the test data set that was carved out (30%) from the original training data set:</p>
 <pre class="r"><code>accuracy &lt;- confusionMatrix(predict(rfmod,testTrainset[,-55]),testTrainset$classe)
 accuracy$overall[1]*100</code></pre>
 <pre><code>## Accuracy 
@@ -121,13 +125,13 @@ names(err) &lt;- &quot;error&quot;
 err</code></pre>
 <pre><code>##     error 
 ## 0.1869159</code></pre>
-<p>The model has an accuracy of 99.81% and an in-sample error of 0.19%. This indicates that the out of sample error will be greater than 0.19%. The high accuracy could also indicate a possibility of overfitting. However, with a low OOB error of 0.28% this should be unlikely the case.</p>
+<p>Based on the prediction conducted on the out-of-sample data set, the model has an accuracy of 99.81% and an error rate of 0.19%. This is consistent with the OOB error indicated above. However, the high accuracy could indicate a possibility of overfitting.</p>
 </div>
 <div id="generating-the-answers-for-submission" class="section level2">
 <h2>Generating the answers for submission</h2>
 <pre class="r"><code>testresult &lt;- predict(rfmod,cleanTestData)</code></pre>
 <pre><code>## Error in predict.randomForest(rfmod, cleanTestData): Type of predictors in new data do not match that of the training data.</code></pre>
-<p>The above fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level “no” as compared to the training set which has two levels “no” and “yes”.</p>
+<p>The above prediction fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level “no” as compared to the training set which has two levels “no” and “yes”.</p>
 <pre class="r"><code>levels(cleanTestData$new_window) &lt;- levels(trainset$new_window)
 testresult &lt;- predict(rfmod,cleanTestData)</code></pre>
 <p>Script to generate the files for submission:</p>
