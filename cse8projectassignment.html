@@ -8,7 +8,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
 
-<meta name="author" content="JSoh" />
+<meta name="author" content="JS" />
 
 
 <title>Coursera 8 Assignment</title>
@@ -53,7 +53,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 
 <div id="header">
 <h1 class="title">Coursera 8 Assignment</h1>
-<h4 class="author"><em>JSoh</em></h4>
+<h4 class="author"><em>JS</em></h4>
 <h4 class="date"><em>Saturday, August 22, 2015</em></h4>
 </div>
 
@@ -78,7 +78,7 @@ if(!file.exists(&quot;pml-test.csv&quot;)){
 # Read and load the data file into a dataframe
 traindata &lt;- read.csv(file=&quot;pml-training.csv&quot;,header=TRUE,na.strings = c(&quot;&quot;,&quot; &quot;,NA,&quot;#DIV/0!&quot;))
 testdata &lt;- read.csv(file=&quot;pml-testing.csv&quot;,header=TRUE,na.strings = c(&quot;&quot;,&quot; &quot;,NA,&quot;#DIV/0!&quot;))</code></pre>
-<p>After inspecting the data, we clean both the training and test data sets by removing columns that has at least one NA value as well as the first 5 columns as the data is not required:</p>
+<p>After inspecting the data, we clean both the training and test data sets by removing columns that has at least one NA value as well as the first 5 columns as the data is deemed not useful for the prediction:</p>
 <pre class="r"><code>head(traindata)
 naCols &lt;- which(unname(sapply(traindata,anyNA)))
 cleanTrainData &lt;- traindata[,-c(1:5,naCols)]
@@ -91,7 +91,7 @@ cleanTestData &lt;- testdata[,-c(1:5,naCols)]</code></pre>
 train &lt;- createDataPartition(cleanTrainData$classe,p=0.7,list=FALSE)
 trainset &lt;- cleanTrainData[train,]
 testTrainset &lt;- cleanTrainData[-train,]</code></pre>
-<p>We will use random forest machine learning model to formulate the prediction model:</p>
+<p>We will use random forest machine learning model to formulate the prediction model. In random forest, cross validation is not required as internally it is done using out of bag (oob) method. The oob error estimate indicates an unbiased estimate of the test set error.</p>
 <pre class="r"><code>library(randomForest)
 set.seed(1234)
 rfmod &lt;- randomForest(classe~.,data=trainset)
@@ -111,19 +111,36 @@ rfmod</code></pre>
 ## C    0   10 2385    1    0 0.0045909850
 ## D    0    0   14 2237    1 0.0066607460
 ## E    0    0    0    7 2518 0.0027722772</code></pre>
-<p>Looking at the OOB error, it seems that the error rate is pretty low at 0.28%. To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:</p>
+<p>Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%. To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:</p>
 <pre class="r"><code>accuracy &lt;- confusionMatrix(predict(rfmod,testTrainset[,-55]),testTrainset$classe)
-accuracy$overall</code></pre>
-<pre><code>##       Accuracy          Kappa  AccuracyLower  AccuracyUpper   AccuracyNull 
-##      0.9981308      0.9976357      0.9966580      0.9990666      0.2844520 
-## AccuracyPValue  McnemarPValue 
-##      0.0000000            NaN</code></pre>
-<pre class="r"><code>errFunc = function(values, prediction) {
-    sum(prediction != values)/length(values)
+accuracy$overall[1]*100</code></pre>
+<pre><code>## Accuracy 
+## 99.81308</code></pre>
+<pre class="r"><code>err &lt;- (1-accuracy$overall[1])*100
+names(err) &lt;- &quot;error&quot;
+err</code></pre>
+<pre><code>##     error 
+## 0.1869159</code></pre>
+<p>The model has an accuracy of 99.81% and an in-sample error of 0.19%. This indicates that the out of sample error will be greater than 0.19%. The high accuracy could also indicate a possibility of overfitting. However, with a low OOB error of 0.28% this should be unlikely the case.</p>
+</div>
+<div id="generating-the-answers-for-submission" class="section level2">
+<h2>Generating the answers for submission</h2>
+<pre class="r"><code>testresult &lt;- predict(rfmod,cleanTestData)</code></pre>
+<pre><code>## Error in predict.randomForest(rfmod, cleanTestData): Type of predictors in new data do not match that of the training data.</code></pre>
+<p>The above fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level “no” as compared to the training set which has two levels “no” and “yes”.</p>
+<pre class="r"><code>levels(cleanTestData$new_window) &lt;- levels(trainset$new_window)
+testresult &lt;- predict(rfmod,cleanTestData)</code></pre>
+<p>Script to generate the files for submission:</p>
+<pre class="r"><code>pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0(&quot;problem_id_&quot;,i,&quot;.txt&quot;)
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
 }
-oosamplerr &lt;- errFunc(testTrainset$classe,predict(rfmod,testTrainset[,-55]))
-oosamplerr</code></pre>
-<pre><code>## [1] 0.001869159</code></pre>
+
+pml_write_files(testresult)</code></pre>
+<p>Having submitted the files, we’ve managed to achieve the correct prediction for all 20 tests! :)</p>
 </div>
 
 

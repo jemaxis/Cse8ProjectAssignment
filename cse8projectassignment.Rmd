@@ -1,6 +1,6 @@
 ---
 title: "Coursera 8 Assignment"
-author: "JSoh"
+author: "JS"
 date: "Saturday, August 22, 2015"
 output: html_document
 ---
@@ -32,7 +32,7 @@ traindata <- read.csv(file="pml-training.csv",header=TRUE,na.strings = c(""," ",
 testdata <- read.csv(file="pml-testing.csv",header=TRUE,na.strings = c(""," ",NA,"#DIV/0!"))
 ```
 
-After inspecting the data, we clean both the training and test data sets by removing columns that has at least one NA value as well as the first 5 columns as the data is not required:
+After inspecting the data, we clean both the training and test data sets by removing columns that has at least one NA value as well as the first 5 columns as the data is deemed not useful for the prediction:
 ```{r cleandata, cache=TRUE, results='hide'}
 head(traindata)
 naCols <- which(unname(sapply(traindata,anyNA)))
@@ -48,21 +48,47 @@ train <- createDataPartition(cleanTrainData$classe,p=0.7,list=FALSE)
 trainset <- cleanTrainData[train,]
 testTrainset <- cleanTrainData[-train,]
 ```
-We will use random forest machine learning model to formulate the prediction model:
+
+We will use random forest machine learning model to formulate the prediction model. In random forest, cross validation is not required as internally it is done using out of bag (oob) method.  The oob error estimate indicates an unbiased estimate of the test set error.
 ```{r RFtraining,cache=TRUE}
 library(randomForest)
 set.seed(1234)
 rfmod <- randomForest(classe~.,data=trainset)
 rfmod
 ```
-Looking at the OOB error, it seems that the error rate is pretty low at 0.28%.
-To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:
+
+Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%. To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:
 ```{r accuracy,cache=TRUE}
 accuracy <- confusionMatrix(predict(rfmod,testTrainset[,-55]),testTrainset$classe)
-accuracy$overall
-errFunc = function(values, prediction) {
-    sum(prediction != values)/length(values)
-}
-oosamplerr <- errFunc(testTrainset$classe,predict(rfmod,testTrainset[,-55]))
-oosamplerr
+accuracy$overall[1]*100
+err <- (1-accuracy$overall[1])*100
+names(err) <- "error"
+err
 ```
+
+The model has an accuracy of 99.81% and an in-sample error of 0.19%.  This indicates that the out of sample error will be greater than 0.19%. The high accuracy could also indicate a possibility of overfitting.  However, with a low OOB error of 0.28% this should be unlikely the case.
+
+##Generating the answers for submission
+```{r answers, cache=TRUE, error=TRUE}
+testresult <- predict(rfmod,cleanTestData)
+```
+
+The above fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level "no" as compared to the training set which has two levels "no" and "yes".
+```{r fixtestdata,cache=TRUE}
+levels(cleanTestData$new_window) <- levels(trainset$new_window)
+testresult <- predict(rfmod,cleanTestData)
+```
+
+Script to generate the files for submission:
+```{r generatefiles,cache=TRUE}
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+
+pml_write_files(testresult)
+```
+Having submitted the files, we've managed to achieve the correct prediction for all 20 tests! :)
