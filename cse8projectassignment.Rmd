@@ -40,7 +40,7 @@ cleanTrainData <- traindata[,-c(1:5,naCols)]
 cleanTestData <- testdata[,-c(1:5,naCols)]
 ```
 
-##Training the data
+##Partitioning data and training the prediction model
 Proceed with partitioning part of the training data set for training the prediction mdoel and the test set for validating the prediction model. 
 ```{r train, cache=TRUE, results='hide'}
 library(caret)
@@ -49,15 +49,17 @@ trainset <- cleanTrainData[train,]
 testTrainset <- cleanTrainData[-train,]
 ```
 
-We will use random forest machine learning model to formulate the prediction model. In random forest, cross validation is not required as internally it is done using out of bag (oob) method.  The oob error estimate indicates an unbiased estimate of the test set error.
+We will use random forest machine learning model to formulate the prediction model as it is known for its accuracy in prediction.  In random forest, cross validation is not required as internally it is done using out of bag (OOB) method. Each tree is constructed using a different bootstrap sample from the original data. About one-third of the cases are left out of the bootstrap sample and not used in the construction of the kth tree.  More details can be found here: https://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr. The OOB error estimate indicates an unbiased estimate of the test set error. Hence, there is no real need to carry out cross-validation to find out the out-of-sample error.
 ```{r RFtraining,cache=TRUE}
 library(randomForest)
 set.seed(1234)
 rfmod <- randomForest(classe~.,data=trainset)
 rfmod
 ```
+Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%.
 
-Looking at the OOB error, it indicates that the error rate for the ensemble is very small at 0.28%. To assess the accuracy of the prediction model we will use the test data set that was carved out from the original training data set:
+##Validating the prediction model
+To assess the accuracy of the prediction model we will use the test data set that was carved out (30%) from the original training data set:
 ```{r accuracy,cache=TRUE}
 accuracy <- confusionMatrix(predict(rfmod,testTrainset[,-55]),testTrainset$classe)
 accuracy$overall[1]*100
@@ -65,15 +67,13 @@ err <- (1-accuracy$overall[1])*100
 names(err) <- "error"
 err
 ```
-
-The model has an accuracy of 99.81% and an in-sample error of 0.19%.  This indicates that the out of sample error will be greater than 0.19%. The high accuracy could also indicate a possibility of overfitting.  However, with a low OOB error of 0.28% this should be unlikely the case.
+Based on the prediction conducted on the out-of-sample data set, the model has an accuracy of 99.81% and an error rate of 0.19%.  This is consistent with the OOB error indicated above.  However, the high accuracy could indicate a possibility of overfitting.
 
 ##Generating the answers for submission
 ```{r answers, cache=TRUE, error=TRUE}
 testresult <- predict(rfmod,cleanTestData)
 ```
-
-The above fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level "no" as compared to the training set which has two levels "no" and "yes".
+The above prediction fails as the cleanTestData has a factor variable that does not have the same levels as the variable factor used in the random forest model. The variable identified is the new_window variable. It has only one level "no" as compared to the training set which has two levels "no" and "yes".
 ```{r fixtestdata,cache=TRUE}
 levels(cleanTestData$new_window) <- levels(trainset$new_window)
 testresult <- predict(rfmod,cleanTestData)
